@@ -31,4 +31,12 @@ public class TriggerConfigureRequest
     /// </summary>
     [StringLength(100, ErrorMessage = "Zone name must be 100 characters or less.")]
     public string? ZoneName { get; set; }
+
+    /// <summary>
+    /// BCM GPIO pin number for Raspberry Pi GPIO boards.
+    /// Only relevant when the board type is RaspberryPiGpio.
+    /// Set to null to leave unchanged.
+    /// </summary>
+    [Range(0, 27, ErrorMessage = "GPIO pin must be a valid BCM GPIO number (0-27).")]
+    public int? GpioPin { get; set; }
 }

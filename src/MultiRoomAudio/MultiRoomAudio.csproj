@@ -23,6 +23,9 @@
     <!-- USB HID support for HID relay boards -->
     <PackageReference Include="HidSharp" Version="2.1.0" />
 
+    <!-- Raspberry Pi GPIO support -->
+    <PackageReference Include="System.Device.Gpio" Version="3.1.0" />
+
     <!-- Configuration -->
     <PackageReference Include="YamlDotNet" Version="16.3.0" />
 

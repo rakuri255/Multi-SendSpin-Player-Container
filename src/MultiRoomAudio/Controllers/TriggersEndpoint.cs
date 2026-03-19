@@ -402,7 +402,8 @@ public static class TriggersEndpoint
                     channel,
                     request.CustomSinkName,
                     request.OffDelaySeconds,
-                    request.ZoneName);
+                    request.ZoneName,
+                    request.GpioPin);
 
                 var boardStatus = service.GetBoardStatus(boardId);
                 var trigger = boardStatus?.Triggers.FirstOrDefault(t => t.Channel == channel);
@@ -446,7 +447,8 @@ public static class TriggersEndpoint
                     channel,
                     request.CustomSinkName,
                     request.OffDelaySeconds,
-                    request.ZoneName);
+                    request.ZoneName,
+                    request.GpioPin);
 
                 var boardStatus = service.GetBoardStatus(boardId);
                 var trigger = boardStatus?.Triggers.FirstOrDefault(t => t.Channel == channel);
@@ -690,7 +692,8 @@ public static class TriggersEndpoint
                     channel,
                     request.CustomSinkName,
                     request.OffDelaySeconds,
-                    request.ZoneName);
+                    request.ZoneName,
+                    request.GpioPin);
 
                 var boardStatus = service.GetBoardStatus(firstBoard.BoardId);
                 var trigger = boardStatus?.Triggers.FirstOrDefault(t => t.Channel == channel);

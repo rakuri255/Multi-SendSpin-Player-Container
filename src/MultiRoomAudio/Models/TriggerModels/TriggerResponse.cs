@@ -12,5 +12,7 @@ public record TriggerResponse(
     RelayState RelayState,
     bool IsActive,
     DateTime? LastActivated,
-    DateTime? ScheduledOffTime
+    DateTime? ScheduledOffTime,
+    /// <summary>BCM GPIO pin number (only set for RaspberryPiGpio boards).</summary>
+    int? GpioPin = null
 );

@@ -640,6 +640,14 @@
                             <option value="16">16</option>
                         </select>
                     </div>
+                    <!-- GPIO info box (shown for GPIO boards) -->
+                    <div class="mb-3 d-none" id="addBoardGpioInfo">
+                        <div class="alert alert-info small mb-0">
+                            <i class="fas fa-microchip me-1"></i>
+                            <strong>Raspberry Pi GPIO Board</strong><br>
+                            After adding, configure the BCM GPIO pin number for each channel in the trigger settings.
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -766,6 +774,13 @@
                         </select>
                         <div id="editBoardChannelCountHelp" class="form-text d-none">
                             <i class="fas fa-info-circle me-1"></i>Channel count auto-detected from device
+                        </div>
+                    </div>
+                    <!-- GPIO info (shown for GPIO boards) -->
+                    <div class="mb-3 d-none" id="editBoardGpioInfo">
+                        <div class="alert alert-info small mb-0">
+                            <i class="fas fa-microchip me-1"></i>
+                            Configure BCM GPIO pin numbers per channel in the trigger channel table (GPIO Pin column).
                         </div>
                     </div>
                 </div>

@@ -4875,6 +4875,8 @@ function renderTriggers() {
             ? '<span class="badge bg-warning text-dark ms-1" title="Identified by USB port - may change if moved"><i class="fas fa-exclamation-triangle"></i> Port-based</span>'
             : '';
 
+        const isGpioBoard = board.boardType === 'RaspberryPiGpio';
+
         const channelsHtml = board.triggers.map(trigger => {
             const isOn = trigger.relayState === 'On';
             const activeStatus = isOn
@@ -4883,12 +4885,29 @@ function renderTriggers() {
             const onBtnClass = isOn ? 'btn btn-success btn-sm' : 'btn btn-outline-secondary btn-sm';
             const offBtnClass = !isOn && trigger.relayState === 'Off' ? 'btn btn-secondary btn-sm' : 'btn btn-outline-secondary btn-sm';
 
+            // GPIO pin cell - only for GPIO boards
+            const gpioPinCell = isGpioBoard ? `
+                <td>
+                    <div class="input-group input-group-sm" style="min-width:80px">
+                        <span class="input-group-text" title="BCM GPIO pin number">BCM</span>
+                        <input type="number" class="form-control"
+                               id="trigger-gpio-${boardIdSafe}-${trigger.channel}"
+                               value="${trigger.gpioPin ?? ''}"
+                               min="0" max="27" step="1"
+                               placeholder="—"
+                               onchange="updateTriggerGpioPin('${boardId}', ${trigger.channel}, this.value)"
+                               ${controlsDisabled ? 'disabled' : ''}>
+                    </div>
+                </td>
+            ` : '';
+
             return `
                 <tr>
                     <td>
                         <span class="badge bg-primary">CH ${trigger.channel}</span>
                         ${activeStatus}
                     </td>
+                    ${gpioPinCell}
                     <td>
                         <select class="form-select form-select-sm"
                                 id="trigger-sink-${boardIdSafe}-${trigger.channel}"
@@ -4928,9 +4947,15 @@ function renderTriggers() {
         }).join('');
 
         // Board type badge
-        const boardTypeLabel = board.boardType === 'Ftdi' ? 'FTDI' : (board.boardType === 'UsbHid' ? 'HID' : board.boardType);
+        const boardTypeLabel = board.boardType === 'Ftdi' ? 'FTDI'
+            : board.boardType === 'UsbHid' ? 'HID'
+            : board.boardType === 'RaspberryPiGpio' ? 'GPIO'
+            : board.boardType;
+        const boardTypeBadgeColor = board.boardType === 'Ftdi' ? 'bg-primary'
+            : board.boardType === 'RaspberryPiGpio' ? 'bg-success'
+            : 'bg-info';
         const boardTypeBadge = board.boardType
-            ? `<span class="badge ${board.boardType === 'Ftdi' ? 'bg-primary' : 'bg-info'} ms-2">${boardTypeLabel}</span>`
+            ? `<span class="badge ${boardTypeBadgeColor} ms-2">${boardTypeLabel}</span>`
             : '';
 
         return `
@@ -4998,6 +5023,7 @@ function renderTriggers() {
                             <thead>
                                 <tr>
                                     <th>Channel</th>
+                                    ${isGpioBoard ? '<th>GPIO Pin</th>' : ''}
                                     <th>Sink</th>
                                     <th>Off Delay</th>
                                     <th class="text-end trigger-action-header"><span class="trigger-action-col">On</span><span class="trigger-action-col">Off</span></th>
@@ -5116,29 +5142,25 @@ async function showAddBoardDialog() {
         const channelCount = option?.dataset?.channelCount;
         const boardType = option?.dataset?.boardType;
         const isFtdi = boardType === 'Ftdi';
+        const isGpio = boardType === 'RaspberryPiGpio';
 
         document.getElementById('addBoardPortWarning').classList.toggle('d-none', !isPortBased);
 
-        // Show FTDI model selector for FTDI boards, channel count for others
+        // Show FTDI model / GPIO info / channel count based on board type
         ftdiModelGroup.classList.toggle('d-none', !isFtdi);
+        document.getElementById('addBoardGpioInfo').classList.toggle('d-none', !isGpio);
         channelCountGroup.classList.toggle('d-none', isFtdi);
 
         if (isFtdi) {
-            // For FTDI boards, default to 8-channel model
             ftdiModelSelect.value = 'Ro8';
+        } else if (isGpio) {
+            // GPIO: show channel count (user decides how many pins they'll use)
+            if (channelCount) channelCountSelect.value = channelCount;
+            channelCountSelect.disabled = false;
         } else {
-            // Auto-fill channel count from detected value for HID boards
-            if (channelCount) {
-                channelCountSelect.value = channelCount;
-            }
-
-            // Disable channel count selector if auto-detected
+            if (channelCount) channelCountSelect.value = channelCount;
             channelCountSelect.disabled = channelDetected;
-            if (channelDetected) {
-                channelCountGroup.title = 'Channel count auto-detected from device';
-            } else {
-                channelCountGroup.title = '';
-            }
+            channelCountGroup.title = channelDetected ? 'Channel count auto-detected from device' : '';
         }
     };
 
@@ -5150,6 +5172,7 @@ async function showAddBoardDialog() {
     ftdiModelGroup.classList.add('d-none');
     channelCountGroup.classList.remove('d-none');
     document.getElementById('addBoardPortWarning').classList.add('d-none');
+    document.getElementById('addBoardGpioInfo').classList.add('d-none');
 
     addBoardModal.show();
 }
@@ -5164,6 +5187,7 @@ async function addBoard() {
     const selectedOption = select.options[select.selectedIndex];
     const boardType = selectedOption?.dataset?.boardType || 'Unknown';
     const isFtdi = boardType === 'Ftdi';
+    const isGpio = boardType === 'RaspberryPiGpio';
 
     // Get channel count from appropriate selector based on board type
     let channelCount;
@@ -5173,7 +5197,7 @@ async function addBoard() {
         const selectedModel = ftdiModelSelect.options[ftdiModelSelect.selectedIndex];
         channelCount = parseInt(selectedModel.dataset.channels, 10);
     } else {
-        // For HID and other boards, use the channel count selector
+        // For GPIO, HID and other boards, use the channel count selector
         channelCount = parseInt(document.getElementById('addBoardChannelCount').value, 10);
     }
 
@@ -5259,6 +5283,7 @@ async function editBoard(boardId) {
 
     // Check board type
     const isFtdi = board.boardType === 'Ftdi';
+    const isGpio = board.boardType === 'RaspberryPiGpio';
 
     // Check if this device has auto-detected channel count (only relevant for non-FTDI)
     // Look up the device in the detected devices list
@@ -5299,12 +5324,22 @@ async function editBoard(boardId) {
         // For FTDI boards, show model selector
         ftdiModelGroup.classList.remove('d-none');
         channelCountGroup.classList.add('d-none');
+        document.getElementById('editBoardGpioInfo').classList.add('d-none');
         // Set model based on current channel count (4 = Ro4, 8 = Ro8 or Generic8)
         ftdiModelSelect.value = board.channelCount === 4 ? 'Ro4' : 'Ro8';
+    } else if (isGpio) {
+        // For GPIO boards, show channel count and GPIO info
+        ftdiModelGroup.classList.add('d-none');
+        channelCountGroup.classList.remove('d-none');
+        document.getElementById('editBoardGpioInfo').classList.remove('d-none');
+        channelCountSelect.value = String(board.channelCount);
+        channelCountSelect.disabled = false;
+        channelCountHelp.classList.add('d-none');
     } else {
         // For HID and other boards, show channel count selector
         ftdiModelGroup.classList.add('d-none');
         channelCountGroup.classList.remove('d-none');
+        document.getElementById('editBoardGpioInfo').classList.add('d-none');
         channelCountSelect.value = String(board.channelCount);
         // Disable channel count if auto-detected
         channelCountSelect.disabled = channelCountDetected;
@@ -5326,6 +5361,7 @@ async function editBoard(boardId) {
             const selectedModel = ftdiModelSelect.options[ftdiModelSelect.selectedIndex];
             newCount = parseInt(selectedModel.dataset.channels, 10);
         } else {
+            // GPIO and HID both use the channel count selector
             newCount = parseInt(channelCountSelect.value, 10);
         }
 
@@ -5530,6 +5566,47 @@ async function updateTriggerDelay(boardId, channel, delay) {
     } catch (error) {
         console.error('Error updating trigger delay:', error);
         showAlert(`Failed to update trigger: ${error.message}`, 'danger');
+    }
+}
+
+// Update GPIO BCM pin number for a channel (GPIO boards only)
+async function updateTriggerGpioPin(boardId, channel, pinValue) {
+    const boardIdSafe = boardId.replace(/[^a-zA-Z0-9]/g, '_');
+    const sinkSelect = document.getElementById(`trigger-sink-${boardIdSafe}-${channel}`);
+    const delayInput = document.getElementById(`trigger-delay-${boardIdSafe}-${channel}`);
+    const sinkName = sinkSelect ? sinkSelect.value : null;
+    const delay = delayInput ? parseInt(delayInput.value, 10) : 60;
+    const gpioPin = pinValue !== '' ? parseInt(pinValue, 10) : null;
+
+    if (gpioPin !== null && (gpioPin < 0 || gpioPin > 27)) {
+        showAlert('GPIO pin must be a BCM number between 0 and 27', 'danger');
+        return;
+    }
+
+    try {
+        const url = boardId.includes('/')
+            ? `./api/triggers/boards/channel?boardId=${encodeURIComponent(boardId)}&channel=${channel}`
+            : `./api/triggers/boards/${encodeURIComponent(boardId)}/${channel}`;
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                channel,
+                customSinkName: sinkName || null,
+                offDelaySeconds: delay,
+                gpioPin
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to update GPIO pin');
+        }
+
+        showAlert(gpioPin !== null ? `GPIO BCM${gpioPin} assigned to CH${channel}` : `GPIO pin cleared for CH${channel}`, 'success', 2000);
+    } catch (error) {
+        console.error('Error updating GPIO pin:', error);
+        showAlert(`Failed to update GPIO pin: ${error.message}`, 'danger');
     }
 }
 

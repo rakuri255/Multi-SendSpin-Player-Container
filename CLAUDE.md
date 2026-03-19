@@ -433,6 +433,7 @@ The trigger system supports USB relay boards for automatic amplifier power contr
 | **FTDI**         | `0x0403:0x6001` | Denkovi DAE-CB/Ro8-USB, DAE-CB/Ro4-USB, Generic 8ch | Manual (model)    |
 | **Modbus/CH340** | `0x1A86:0x7523` | Sainsmart 16-channel                                | Manual            |
 | **LCUS/CH340**   | `0x1A86:0x7523` | LCUS 1-8 channel relay boards                       | Auto-detected     |
+| **Raspberry Pi GPIO** | `/dev/gpiochipN` | Pi GPIO header (any Pi model)               | Manual (channel count + BCM pin per channel) |
 
 ### Board Identification
 
@@ -444,6 +445,7 @@ All board types use USB port path hash for consistent identification:
 | **FTDI** | `FTDI:8HEXCHARS` | `FTDI:7B9E3D1A` |
 | **Modbus** | `MODBUS:8HEXCHARS` | `MODBUS:7F3A2B1C` |
 | **LCUS** | `LCUS:8HEXCHARS` | `LCUS:2D4F6A8B` |
+| **GPIO** | `GPIO:gpiochipN` | `GPIO:gpiochip0` |
 
 Board IDs are stable across reboots as long as the board stays in the same USB port. Moving a board to a different port will generate a new ID.
 

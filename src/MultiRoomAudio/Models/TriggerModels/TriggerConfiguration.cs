@@ -32,4 +32,11 @@ public class TriggerConfiguration
     /// </summary>
     [StringLength(100)]
     public string? ZoneName { get; set; }
+
+    /// <summary>
+    /// BCM GPIO pin number for Raspberry Pi GPIO boards.
+    /// Only used when the parent board type is RaspberryPiGpio.
+    /// Null means the channel has no pin assigned yet.
+    /// </summary>
+    public int? GpioPin { get; set; }
 }

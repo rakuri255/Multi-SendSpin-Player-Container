@@ -55,12 +55,14 @@ public class MockRelayBoardFactory : IRelayBoardFactory
             "MOCK001" or "MOCK002" => 8, // FTDI mock boards
             "HID:QAAMZ" => 4, // 4-channel HID mock board
             "HID:ABCDE" or "HID:MOCK8" => 8, // 8-channel HID mock board
-            _ when boardId.StartsWith("MODBUS:", StringComparison.OrdinalIgnoreCase) => 16, // Default 16 for Modbus
+            _ when boardId.StartsWith("MODBUS:", StringComparison.OrdinalIgnoreCase) => 16,
+            _ when boardId.StartsWith("GPIO:", StringComparison.OrdinalIgnoreCase) => 8, // GPIO boards default to 8
             _ => boardType switch
             {
                 RelayBoardType.UsbHid => 4,
                 RelayBoardType.Modbus => 16,
-                _ => 8 // FTDI and others default to 8
+                RelayBoardType.RaspberryPiGpio => 8,
+                _ => 8
             }
         };
     }

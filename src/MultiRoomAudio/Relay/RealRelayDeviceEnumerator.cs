@@ -1,5 +1,6 @@
 using MultiRoomAudio.Models.TriggerModels;
 using MultiRoomAudio.Relay.Ch340;
+using MultiRoomAudio.Relay.Gpio;
 using MultiRoomAudio.Relay.Hid;
 
 namespace MultiRoomAudio.Relay;
@@ -21,7 +22,8 @@ public class RealRelayDeviceEnumerator : IRelayDeviceEnumerator
     public bool IsHardwareAvailable =>
         FtdiRelayBoard.IsLibraryAvailable() ||
         HidRelayBoard.EnumerateDevices(_logger).Count > 0 ||
-        Ch340RelayProbe.EnumerateDevices(_logger).Count > 0;
+        Ch340RelayProbe.EnumerateDevices(_logger).Count > 0 ||
+        GpioRelayBoard.IsAvailable();
 
     /// <inheritdoc />
     public List<FtdiDeviceInfo> GetFtdiDevices()
@@ -125,6 +127,30 @@ public class RealRelayDeviceEnumerator : IRelayDeviceEnumerator
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Error enumerating CH340 relay devices");
+        }
+
+        // Enumerate Raspberry Pi GPIO chips
+        try
+        {
+            foreach (var chip in GpioRelayBoard.EnumerateChips(_logger))
+            {
+                result.Add(new RelayDeviceInfo(
+                    BoardId: chip.GetBoardId(),
+                    BoardType: RelayBoardType.RaspberryPiGpio,
+                    SerialNumber: chip.DevicePath,
+                    Description: chip.Description,
+                    ChannelCount: 8, // Default; user configures actual count after adding
+                    IsInUse: false,
+                    UsbPath: chip.DevicePath,
+                    IsPathBased: false,
+                    ChannelCountDetected: false,
+                    IsAccessible: true
+                ));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error enumerating GPIO relay devices");
         }
 
         _logger.LogDebug("Found {Count} total relay devices", result.Count);

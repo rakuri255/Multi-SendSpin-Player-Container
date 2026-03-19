@@ -19,6 +19,8 @@ public enum RelayBoardType
     Modbus,
     /// <summary>LCUS binary relay board (1-8 channel) - uses simple binary protocol over CH340/CH341.</summary>
     Lcus,
+    /// <summary>Raspberry Pi GPIO header relay board - uses Linux GPIO character device (/dev/gpiochipN).</summary>
+    RaspberryPiGpio,
     /// <summary>Mock board for testing.</summary>
     Mock
 }

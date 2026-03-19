@@ -240,7 +240,8 @@ public class TriggerService : IAsyncDisposable
                 LastActivated: channelState.LastActivated,
                 ScheduledOffTime: channelState.OffDelayTimer?.Enabled == true
                     ? channelState.LastActivated?.AddSeconds(config.OffDelaySeconds)
-                    : null
+                    : null,
+                GpioPin: config.GpioPin
             ));
         }
 
@@ -326,6 +327,8 @@ public class TriggerService : IAsyncDisposable
                 boardType = RelayBoardType.UsbHid;
             else if (boardId.StartsWith("MODBUS:", StringComparison.OrdinalIgnoreCase))
                 boardType = RelayBoardType.Modbus;
+            else if (boardId.StartsWith("GPIO:", StringComparison.OrdinalIgnoreCase))
+                boardType = RelayBoardType.RaspberryPiGpio;
             else
                 boardType = RelayBoardType.Ftdi;
         }
@@ -495,7 +498,7 @@ public class TriggerService : IAsyncDisposable
     /// <summary>
     /// Configure a trigger channel on a specific board.
     /// </summary>
-    public bool ConfigureTrigger(string boardId, int channel, string? customSinkName, int offDelaySeconds, string? zoneName)
+    public bool ConfigureTrigger(string boardId, int channel, string? customSinkName, int offDelaySeconds, string? zoneName, int? gpioPin = null)
     {
         var boardConfig = _config.Boards.FirstOrDefault(b => b.BoardId == boardId);
         if (boardConfig == null)
@@ -529,6 +532,14 @@ public class TriggerService : IAsyncDisposable
             trigger.OffDelaySeconds = offDelaySeconds;
             trigger.ZoneName = zoneName;
 
+            // Update GPIO pin if provided
+            if (gpioPin.HasValue)
+            {
+                trigger.GpioPin = gpioPin.Value;
+                _logger.LogInformation("GPIO pin for {BoardId}/CH{Channel} set to BCM{Pin}",
+                    boardId, channel, gpioPin.Value);
+            }
+
             // If unassigning, turn off the relay and cancel timer
             if (string.IsNullOrEmpty(customSinkName))
             {
@@ -544,9 +555,20 @@ public class TriggerService : IAsyncDisposable
                 }
             }
 
+            // For GPIO boards: update the live pin mapping whenever any channel config changes
+            if (boardConfig.BoardType == RelayBoardType.RaspberryPiGpio
+                && _relayBoards.TryGetValue(boardId, out var gpioBoard)
+                && gpioBoard is Relay.Gpio.GpioRelayBoard gpioBoardImpl)
+            {
+                var mapping = BuildGpioPinMapping(boardConfig);
+                gpioBoardImpl.UpdatePinMapping(mapping);
+            }
+
             SaveConfiguration();
-            _logger.LogInformation("Trigger {BoardId}/{Channel} configured: sink={Sink}, delay={Delay}s, zone={Zone}",
-                boardId, channel, customSinkName ?? "(none)", offDelaySeconds, zoneName ?? "(none)");
+            _logger.LogInformation(
+                "Trigger {BoardId}/{Channel} configured: sink={Sink}, delay={Delay}s, zone={Zone}, gpio={GpioPin}",
+                boardId, channel, customSinkName ?? "(none)", offDelaySeconds, zoneName ?? "(none)",
+                gpioPin.HasValue ? $"BCM{gpioPin}" : "(unchanged)");
 
             return true;
         }
@@ -746,6 +768,8 @@ public class TriggerService : IAsyncDisposable
                     boardType = RelayBoardType.UsbHid;
                 else if (boardId.StartsWith("MODBUS:", StringComparison.OrdinalIgnoreCase))
                     boardType = RelayBoardType.Modbus;
+                else if (boardId.StartsWith("GPIO:", StringComparison.OrdinalIgnoreCase))
+                    boardType = RelayBoardType.RaspberryPiGpio;
                 else
                     boardType = RelayBoardType.Ftdi;
             }
@@ -834,6 +858,11 @@ public class TriggerService : IAsyncDisposable
                     connected = board.Open();
                 }
             }
+            else if (boardId.StartsWith("GPIO:", StringComparison.OrdinalIgnoreCase))
+            {
+                // Raspberry Pi GPIO – open by chip index embedded in the ID
+                connected = board.Open();
+            }
             else
             {
                 // FTDI with serial number (raw serial as ID)
@@ -861,6 +890,16 @@ public class TriggerService : IAsyncDisposable
                         boardId, board.ChannelCount, boardConfig.ChannelCount);
                     boardConfig.ChannelCount = board.ChannelCount;
                     SaveConfiguration();
+                }
+
+                // For GPIO boards: push current channel→pin mapping into the board
+                if (boardType == RelayBoardType.RaspberryPiGpio && board is Relay.Gpio.GpioRelayBoard gpioBoard)
+                {
+                    var mapping = BuildGpioPinMapping(boardConfig);
+                    gpioBoard.UpdatePinMapping(mapping);
+                    _logger.LogInformation(
+                        "GPIO board '{BoardId}': loaded {Count} pin assignments from config",
+                        boardId, mapping.Count);
                 }
 
                 // Apply startup behavior or restore previous state
@@ -1258,12 +1297,14 @@ public class TriggerService : IAsyncDisposable
             try
             {
                 // Clean up unconfigured triggers before saving
+                // Keep triggers that have: a sink, a zone name, a non-default off-delay, OR a GPIO pin assigned
                 foreach (var board in config.Boards)
                 {
                     board.Triggers = board.Triggers
                         .Where(t => !string.IsNullOrEmpty(t.CustomSinkName) ||
                                     !string.IsNullOrEmpty(t.ZoneName) ||
-                                    t.OffDelaySeconds != 60)
+                                    t.OffDelaySeconds != 60 ||
+                                    t.GpioPin.HasValue)
                         .ToList();
                 }
 
@@ -1276,6 +1317,21 @@ public class TriggerService : IAsyncDisposable
                 _logger.LogError(ex, "Failed to save trigger configuration to {Path}", _configPath);
             }
         }
+    }
+
+    /// <summary>
+    /// Build the channel→BCM-pin dictionary from a GPIO board's trigger configurations.
+    /// Only channels that have a GpioPin assigned are included.
+    /// </summary>
+    private static Dictionary<int, int> BuildGpioPinMapping(TriggerBoardConfiguration boardConfig)
+    {
+        var mapping = new Dictionary<int, int>();
+        foreach (var trigger in boardConfig.Triggers)
+        {
+            if (trigger.GpioPin.HasValue && trigger.Channel >= 1 && trigger.Channel <= 16)
+                mapping[trigger.Channel] = trigger.GpioPin.Value;
+        }
+        return mapping;
     }
 
     #endregion
